@@ -1,0 +1,2 @@
+Train Cross Entropy Loss,"Train Dice Coefficient Score (Background, Polyp)",Val Cross Entropy Loss,"Val Dice Coefficient Score (Background, Polyp)",Test Cross Entropy Loss,"Test Dice Coefficient Score (Background, Polyp)"
+0.44347754955291746,0.5638687539100646,[0.22257723 0.66456145],[0.77801602 0.33616984],0.4059616816043854,[0.20612279 0.68367624]
