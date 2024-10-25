@@ -50,8 +50,8 @@ Before you begin, ensure you have met the following requirements:
 
 - Clone this repo:
 ```bash
-git clone https://github.com/ktlProject0/KTL_project_09_Polyp_Segmentation.git
-cd KTL_project_09_Polyp_Segmentation
+git clone https://github.com/ktlProject0/KTL_project_02_Polyp_Segmentation.git
+cd KTL_project_02_Polyp_Segmentation
 ```
  - You can create a new Conda environment using `conda env create -f environment.yml`.
 
