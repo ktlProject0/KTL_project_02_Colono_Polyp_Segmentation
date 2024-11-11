@@ -15,12 +15,11 @@ from loss import DiceChannelLoss
 
 
 if __name__ == '__main__':
-    # Training settings
-    parser = argparse.ArgumentParser(description='Poly Segmentation')
+    parser = argparse.ArgumentParser(description='Polyp Segmentation')
     parser.add_argument('--data_direc', type=str,default='./data', help="data directory")
-    parser.add_argument('--n_classes', type=int,default=2, help="num of classes")
-    parser.add_argument('--batchSize', type=int, default=4, help='training batch size')
-    parser.add_argument('--total_epoch', type=int, default=5, help='number of epochs to train for')
+    parser.add_argument('--n_classes', type=int,default=1, help="num of classes")
+    parser.add_argument('--batchSize', type=int, default=16, help='training batch size')
+    parser.add_argument('--total_epoch', type=int, default=50, help='number of epochs to train for')
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning Rate. Default=0.001')
     parser.add_argument('--lr_schedule_patience', type=float, default=10, help='Learning Rate schedule patience. Default=10')
     parser.add_argument('--earlystop_patience', type=float, default=20, help='Earlystop_patience. Default=20')
@@ -43,9 +42,8 @@ if __name__ == '__main__':
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
-    
+
     device ='cuda'
-    
     print('===> Loading datasets')
     
     train_set = CustomDataset(f"{opt.data_direc}/train",mode='train')
@@ -55,7 +53,7 @@ if __name__ == '__main__':
     
     print('===> Building model')
     model = Net(n_classes=opt.n_classes).to(device)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCELoss()
     criterion_dice =DiceChannelLoss()
     
     optimizer = optim.Adam(model.parameters(), lr=opt.lr)
