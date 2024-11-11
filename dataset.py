@@ -19,7 +19,7 @@ class CustomDataset(Dataset):
                     A.Resize(width=224, height=224),
                     A.HorizontalFlip(),
                     A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
-                    A.ShiftScaleRotate(shift_limit=(-0.05,0.05),scale_limit=(-0.1,0.2),rotate_limit=(-10,10),p=0.5),
+                    A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=10, p=0.5),
                     A.Normalize(mean=0.5, 
                                 std=0.5, 
                                 max_pixel_value=1.0, always_apply=True, p=1.0),
@@ -48,8 +48,8 @@ class CustomDataset(Dataset):
             
             image = (np.array(default_loader(sample['image']))/255.).astype(np.float32)
             mask = np.array(default_loader(sample['label']))[...,0]
-            mask = mask>100
-            mask = np.stack([(mask==x).astype(np.uint8) for x in [0,1]], axis=-1)
+            mask = (mask >= 1).astype('float32')
+            mask = np.expand_dims(mask, axis=-1)
 
             sample['image'] = image
             sample['mask'] = mask
@@ -66,10 +66,10 @@ class CustomDataset(Dataset):
         sample_input['origin_shape'] = sample['origin_shape']
         
         return sample_input
-        
+    
 if __name__ == '__main__':
-    train = CustomDataset('/home/sujeong/sujeong/project/KTL/2_stomach/data/','train')
-    test = CustomDataset('/home/sujeong/sujeong/project/KTL/2_stomach/data/','test')
+    train = CustomDataset('/home/pwrai/userarea/hansung3/KTL_project_02_Polyp_Segmentation/data/','train')
+    test = CustomDataset('/home/pwrai/userarea/hansung3/KTL_project_02_Polyp_Segmentation/data/','test')
     for sample_input in train:
         print(sample_input['input'].shape)
         print(sample_input['target'].shape)
