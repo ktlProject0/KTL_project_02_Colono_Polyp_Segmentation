@@ -6,33 +6,31 @@ class DiceChannelLoss(nn.Module):
     def __init__(self):
         super(DiceChannelLoss, self).__init__()
 
-    def forward(self, pred, target, smooth=1e-9 ,weights_apply=False):
-        
-        pred = F.softmax(pred,dim=1) # batch,channel,h,w
-        
+    def forward(self, pred, target, smooth=1e-9, weights_apply=False):
+        pred = torch.sigmoid(pred)
+
+        if target.dim() == 3:
+            target = target.unsqueeze(1)
+
         num_channels = pred.shape[1]
         dice = torch.zeros(num_channels, device=pred.device)
         
         for i in range(num_channels):
             pred_channel = pred[:, i]
             target_channel = target[:, i]
-            if len(pred_channel.shape)==3:
-                intersection = (pred_channel * target_channel).sum(dim=(0, 1, 2))
-                dice_coeff = (2. * intersection + smooth) / (pred_channel.sum(dim=(0, 1, 2)) + target_channel.sum(dim=(0, 1, 2)) + smooth)
-            else:
-                intersection = (pred_channel * target_channel).sum(dim=(0, 1, 2,3))
-                dice_coeff = (2. * intersection + smooth) / (pred_channel.sum(dim=(0, 1, 2,3)) + target_channel.sum(dim=(0, 1, 2,3)) + smooth)
-                
-            dice[i] = 1 - dice_coeff
+            
+            intersection = (pred_channel * target_channel).sum()
+            dice_coeff = (2. * intersection + smooth) / (pred_channel.sum() + target_channel.sum() + smooth)
 
-        # Apply weight to the Dice Loss based on epoch_dice value
+            dice[i] = 1 - dice_coeff.item()
+
         if weights_apply:
-            weights = (dice/torch.sum(dice))
+            weights = (dice / torch.sum(dice))
             dice = dice * weights.to(pred.device)
 
-        dice_loss = torch.exp(dice).sum() # weight automatically
+        dice_loss = dice.sum()
         
-        del pred,pred_channel,target_channel,intersection,dice_coeff
+        del pred, pred_channel, target_channel, intersection, dice_coeff
         torch.cuda.empty_cache()
         
         return dice, dice_loss
