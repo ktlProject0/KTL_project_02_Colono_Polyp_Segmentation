@@ -18,9 +18,9 @@ from loss import DiceChannelLoss
 
 if __name__ == '__main__':
     # Training settings
-    parser = argparse.ArgumentParser(description='Poly Segmentation')
+    parser = argparse.ArgumentParser(description='Polyp Segmentation')
     parser.add_argument('--data_direc', type=str,default='./data', help="data directory")
-    parser.add_argument('--n_classes', type=int,default=2, help="num of classes")
+    parser.add_argument('--n_classes', type=int,default=1, help="num of classes")
     parser.add_argument('--cuda', action='store_true', help='use cuda?')
     parser.add_argument('--threads', type=int, default=4, help='number of threads for data loader to use')
     parser.add_argument('--seed', type=int, default=42, help='random seed to use. Default=123')
@@ -44,9 +44,7 @@ if __name__ == '__main__':
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
-    
     device ='cuda'
-    
     print('===> Loading datasets')
     
     test_set = CustomDataset(f"{opt.data_direc}/test",mode='eval')
@@ -60,7 +58,7 @@ if __name__ == '__main__':
     with open(os.path.join(opt.model_save_path,'metric_logger.json'), 'r') as f:
         metric_logger = json.load(f)
     
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCELoss()
     criterion_dice =DiceChannelLoss()
     
     
@@ -74,7 +72,8 @@ if __name__ == '__main__':
             image = data['input'].to(device)
             target = data['target'].to(device)
 
-            pred = model(image.float())
+            pred_logit = model(image.float())
+            pred = (pred_logit > 0.5).float()
             ce_loss = criterion(pred,target.float())
             dice_channel_loss, dice_loss = criterion_dice(pred,target)
             
@@ -85,12 +84,7 @@ if __name__ == '__main__':
     test_ce/=total_test_num
 
 
-    eval_df = pd.DataFrame({"Train Cross Entropy Loss":[np.min(metric_logger['train_ce'])],
-              "Train Dice Coefficient Score (Background, Polyp)":[1 - np.min(metric_logger['val_ce'])],
-              "Val Cross Entropy Loss":[np.min(metric_logger['train_dice_per_channel'],axis=0)],
-              "Val Dice Coefficient Score (Background, Polyp)":[1 - np.min(metric_logger['val_dice_per_channel'],axis=0)],
-              "Test Cross Entropy Loss":[test_ce],
-              "Test Dice Coefficient Score (Background, Polyp)":[test_dice.numpy()]})
+    eval_df = pd.DataFrame({"Test Dice Coefficient Score":[test_dice.numpy()]})
 
     eval_df.to_csv(f"test_results/metric_df.csv",index=None)
 
@@ -106,10 +100,7 @@ if __name__ == '__main__':
     plt.figure()
     for k in ['train_ce','val_ce']:
         plt.plot(np.arange(len(metric_logger[k])),metric_logger[k],label=k)
-    plt.title("Cross Entropy Loss")
+    plt.title("Binary Cross Entropy Loss")
     plt.legend()
     plt.grid()
-    plt.savefig(f"test_results/learning_graph_cross_enropy.png",dpi=200)
-
-    
-    
+    plt.savefig(f"test_results/learning_graph_binary_cross_enropy.png",dpi=200)
