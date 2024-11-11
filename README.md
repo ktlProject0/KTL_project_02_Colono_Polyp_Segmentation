@@ -79,10 +79,10 @@ Once the model is trained, you can evaluate its performance on the test set by r
 During the testing process, the following will be saved automatically in the `test_results/` directory:
 
 1. **Training and Validation Learning Curve**:  
-   A plot of the training and validation loss across epochs is saved as `learning_graph_dice_coefficient.png` and `learning_graph_cross_enropy.png`. This graph helps visualize how the model performance evolves during the training process.
+   A plot of the training and validation loss across epochs is saved as `learning_graph_dice_coefficient.png` and `learning_graph_binary_cross_enropy.png`. This graph helps visualize how the model performance evolves during the training process.
 
 2. **Test Accuracy and Loss**:  
-   The accuracy and loss from the test set evaluation are saved in a `metric_df.csv` file. The CSV file will include columns such as `Cross Entropy Loss` and `Dice Coefficient Score` for better tracking of the model's performance.
+   The accuracy and loss from the test set evaluation are saved in a `metric_df.csv` file. The CSV file will include columns such as `Dice Coefficient Score` for better tracking of the model's performance.
    
 These results can be used for further analysis and tuning of the model.
 
