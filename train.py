@@ -11,145 +11,103 @@ from torch.utils.data import DataLoader
 from model import Net
 from dataset import CustomDataset
 from util import EarlyStopping
-from loss import DiceChannelLoss
-
+from loss import BCELoss
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Polyp Segmentation')
-    parser.add_argument('--data_direc', type=str,default='./data', help="data directory")
-    parser.add_argument('--n_classes', type=int,default=1, help="num of classes")
-    parser.add_argument('--batchSize', type=int, default=16, help='training batch size')
-    parser.add_argument('--total_epoch', type=int, default=50, help='number of epochs to train for')
-    parser.add_argument('--lr', type=float, default=1e-4, help='Learning Rate. Default=0.001')
-    parser.add_argument('--lr_schedule_patience', type=float, default=10, help='Learning Rate schedule patience. Default=10')
-    parser.add_argument('--earlystop_patience', type=float, default=20, help='Earlystop_patience. Default=20')
-    parser.add_argument('--cuda', action='store_true', help='use cuda?')
-    parser.add_argument('--threads', type=int, default=4, help='number of threads for data loader to use')
-    parser.add_argument('--seed', type=int, default=42, help='random seed to use. Default=123')
-    parser.add_argument('--model_save_path', type=str, default='./checkpoints', help='Path for save best model')
+    parser.add_argument('--data_direc', type=str, default='./data', help="Data directory")
+    parser.add_argument('--n_classes', type=int, default=1, help="Number of classes")
+    parser.add_argument('--batchSize', type=int, default=2, help='Training batch size')
+    parser.add_argument('--total_epoch', type=int, default=200, help='Number of epochs to train for')
+    parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
+    parser.add_argument('--lr_schedule_patience', type=int, default=10, help='Learning rate schedule patience')
+    parser.add_argument('--earlystop_patience', type=int, default=20, help='Early stopping patience')
+    parser.add_argument('--cuda', action='store_true', help='Use CUDA')
+    parser.add_argument('--threads', type=int, default=4, help='Number of threads for data loader')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed')
+    parser.add_argument('--model_save_path', type=str, default='./checkpoints', help='Path to save the best model')
     opt = parser.parse_args()
-    
-    os.makedirs(opt.model_save_path,exist_ok = True)
-    
-    print(opt)
-    
-    if opt.cuda and not torch.cuda.is_available():
-        raise Exception("No GPU found, please run without --cuda")
-    
-    torch.manual_seed(opt.seed)
-    
-    if opt.cuda:
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
 
-    device ='cuda'
+    os.makedirs(opt.model_save_path, exist_ok=True)
+    print(opt)
+
+    # Set device
+    torch.manual_seed(opt.seed)
+    device = 'cuda'
+
+    # Load datasets
     print('===> Loading datasets')
-    
-    train_set = CustomDataset(f"{opt.data_direc}/train",mode='train')
-    test_set = CustomDataset(f"{opt.data_direc}/val",mode='eval')
+    train_set = CustomDataset(f"{opt.data_direc}/train", mode='train')
+    val_set = CustomDataset(f"{opt.data_direc}/val", mode='eval')
     train_dataloader = DataLoader(dataset=train_set, num_workers=opt.threads, batch_size=opt.batchSize, shuffle=True)
-    val_dataloader = DataLoader(dataset=test_set, num_workers=opt.threads, batch_size=opt.batchSize, shuffle=False)
-    
+    val_dataloader = DataLoader(dataset=val_set, num_workers=opt.threads, batch_size=opt.batchSize, shuffle=False)
+
+    # Initialize model, loss function, optimizer, and scheduler
     print('===> Building model')
     model = Net(n_classes=opt.n_classes).to(device)
-    criterion = nn.BCELoss()
-    criterion_dice =DiceChannelLoss()
-    
+    criterion = BCELoss()
     optimizer = optim.Adam(model.parameters(), lr=opt.lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,patience=opt.lr_schedule_patience)
-    monitor = EarlyStopping(patience=opt.earlystop_patience, verbose=True, path=os.path.join(opt.model_save_path,'model.pth'))
-    
-    metric_logger = {k:[] for k in ['train_ce','val_ce',
-                                'train_dice','val_dice',
-                                'train_loss','val_loss',
-                                'train_dice_per_channel', 'val_dice_per_channel',
-                                'lr']}
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=opt.lr_schedule_patience)
+    monitor = EarlyStopping(patience=opt.earlystop_patience, verbose=True, path=os.path.join(opt.model_save_path, 'model_statedict.pth'))
+
+    # Initialize metrics
+    metric_logger = {k: [] for k in ['train_ce', 'val_ce', 'train_loss', 'val_loss', 'lr']}
     total_train_num = len(train_dataloader.sampler)
     total_val_num = len(val_dataloader.sampler)
-    
-    
+
     for epoch in range(opt.total_epoch):
-        
         for param in optimizer.param_groups:
-            lr_stauts = param['lr']
-        metric_logger['lr'].append(lr_stauts)
-    
-        epoch_loss = {k:0 for k in metric_logger if k not in ['lr']}
-        epoch_loss['train_dice_per_channel'] = torch.zeros(opt.n_classes)
-        epoch_loss['val_dice_per_channel'] = torch.zeros(opt.n_classes)
-        
-        print(f"Epoch {epoch+1:03d}/{opt.total_epoch:03d}\tLR: {lr_stauts:.0e}")
-        
+            lr_status = param['lr']
+        metric_logger['lr'].append(lr_status)
+
+        epoch_loss = {k: 0 for k in metric_logger if k != 'lr'}
+
+        print(f"Epoch {epoch + 1:03d}/{opt.total_epoch:03d}\tLR: {lr_status:.0e}")
+
+        # Training phase
         model.train()
-        for data in tqdm(train_dataloader,total=len(train_dataloader),position=0,desc='Train',colour='blue'):
-            batch_num = len(data['input'])
-            
-            image = data['input'].to(device)
-            target = data['target'].to(device)
-            
+        for data in tqdm(train_dataloader, total=len(train_dataloader), desc='Train', colour='blue'):
+            image, target = data['input'].to(device), data['target'].to(device)
             pred = model(image.float())
-            ce_loss = criterion(pred,target.float())
-            dice_loss_per_channel, dice_loss = criterion_dice(pred,target)
-            
-            loss = ce_loss + dice_loss
-            
+            ce_loss = criterion(pred, target.float())
+
             optimizer.zero_grad()
-            loss.backward()
+            ce_loss.backward()
             optimizer.step()
-            
-            epoch_loss['train_ce'] += ce_loss.item()*batch_num
-            epoch_loss['train_dice'] += dice_loss.item()*batch_num
-            epoch_loss['train_loss'] += loss.item()*batch_num
-            epoch_loss['train_dice_per_channel'] += dice_loss_per_channel.cpu()*batch_num
-            
-            
+
+            batch_num = image.size(0)
+            epoch_loss['train_ce'] += ce_loss.item() * batch_num
+            epoch_loss['train_loss'] += ce_loss.item() * batch_num
+
+        # Validation phase
         model.eval()
         with torch.no_grad():
-            for data in tqdm(val_dataloader,total=len(val_dataloader),position=0,desc='Val',colour='green'):
-                batch_num = len(data['input'])
-            
-                image = data['input'].to(device)
-                target = data['target'].to(device)
-    
+            for data in tqdm(val_dataloader, total=len(val_dataloader), desc='Val', colour='green'):
+                image, target = data['input'].to(device), data['target'].to(device)
                 pred = model(image.float())
-                ce_loss = criterion(pred,target.float())
-                dice_loss_per_channel, dice_loss = criterion_dice(pred,target)
-                loss = ce_loss + dice_loss
-            
-                epoch_loss['val_ce'] += ce_loss.item()*batch_num
-                epoch_loss['val_dice'] += dice_loss.item()*batch_num
-                epoch_loss['val_loss'] += loss.item()*batch_num
-                epoch_loss['val_dice_per_channel'] += dice_loss_per_channel.cpu()*batch_num
-    
-    
-        
-        epoch_loss = {k:(v/total_train_num if 'train' in k else v/total_val_num) for k,v in epoch_loss.items()}
-        
-        for k,v in epoch_loss.items():
-            if '_per_channel' in k:
-                v=v.detach().numpy().tolist()
+                ce_loss = criterion(pred, target.float())
+
+                batch_num = image.size(0)
+                epoch_loss['val_ce'] += ce_loss.item() * batch_num
+                epoch_loss['val_loss'] += ce_loss.item() * batch_num
+
+        # Normalize metrics by dataset size
+        epoch_loss = {k: v / (total_train_num if 'train' in k else total_val_num) for k, v in epoch_loss.items()}
+        for k, v in epoch_loss.items():
             metric_logger[k].append(v)
-    
-        monitor(epoch_loss['val_loss'],model)
+
+        # Early stopping
+        monitor(epoch_loss['val_loss'], model)
         if monitor.early_stop:
-            print(f"Train early stopped, Minimum validation loss: {monitor.val_loss_min}")
+            print(f"Training early stopped. Minimum validation loss: {monitor.val_loss_min}")
             break
-        
-        scheduler.step(epoch_loss['val_loss'])        
-        
-        print(f"Train loss: {epoch_loss['train_loss']:.7f}\tTrain ce: {epoch_loss['train_ce']:.7f}\tTrain dice: {epoch_loss['train_dice']:.7f}\n\
-    Val loss: {epoch_loss['val_loss']:.7f}\tVal ce: {epoch_loss['val_ce']:.7f}\tVal dice: {epoch_loss['val_dice']:.7f}")
-    
-        formatted_list = ['{:4d}'.format(num) for num in [0,1]]
-        print("Class\n",', '.join(formatted_list))
-    
-        formatted_list = ['{:.2f}'.format(num) for num in epoch_loss['train_dice_per_channel']]
-        print("Train dice loss per channel\n",', '.join(formatted_list))
-    
-        formatted_list = ['{:.2f}'.format(num) for num in epoch_loss['val_dice_per_channel']]
-        print("Val dice loss per channel\n",', '.join(formatted_list))
-    
-    
-        with open(os.path.join(opt.model_save_path,'metric_logger.json'),'w') as f:
-            json.dump(metric_logger, f)
+
+        # Adjust learning rate
+        scheduler.step(epoch_loss['val_loss'])
+
+        print(f"Train loss: {epoch_loss['train_loss']:.7f}\tTrain CE: {epoch_loss['train_ce']:.7f}\n"
+              f"Val loss: {epoch_loss['val_loss']:.7f}\tVal CE: {epoch_loss['val_ce']:.7f}")
+
+    # Save metrics to JSON
+    with open(os.path.join(opt.model_save_path, 'metric_logger.json'), 'w') as f:
+        json.dump(metric_logger, f)
